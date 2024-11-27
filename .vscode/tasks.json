@@ -1,0 +1,41 @@
+{
+    "tasks": [
+        {
+            "type": "cppbuild",
+            "label": "Build Active File and Run in External Terminal",
+            "command": "cmd",
+            "args": [
+                "/c",
+                "C:\\msys64\\ucrt64\\bin\\g++.exe",
+                "-fdiagnostics-color=always",
+                "-g",
+                "${workspaceFolder}/*.cpp",
+                "-o",
+                "${workspaceFolder}/${fileBasenameNoExtension}.exe", 
+                "&&",
+                "start",
+                "cmd",
+                "/k",
+                "${workspaceFolder}\\${fileBasenameNoExtension}.exe" 
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "detail": "Compiles all .cpp files and runs the output with a name based on the active file.",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "new"
+            }
+        }
+    ],
+    "version": "2.0.0"
+}
