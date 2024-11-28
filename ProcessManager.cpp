@@ -82,21 +82,21 @@ void ProcessManager::listProcesses()
         }
     }
 
-    // Display memory and CPU usage
+    // Display memory in KB
     std::cout << "Memory Usage: " << (usedMemory / 1024) << "KB/"
               << (totalMemory / 1024) << "KB ("
-              << (usedMemory * 100 / totalMemory) << "%)\n";
+              << ((usedMemory * 100) / totalMemory) << "%)\n";
     std::cout << "CPU utilization: " << (activeCount * 100 / totalCores) << "%\n";
     std::cout << "Cores used: " << activeCount << "\n";
     std::cout << "Cores available: " << (totalCores - activeCount) << "\n\n";
 
-    // Display process info
     std::cout << "Running processes:\n";
     for (const auto &process : processSnapshot)
     {
         if (process->getState() == Process::RUNNING)
         {
             process->displayProcessInfo();
+            // Memory requirement is already in KB
             std::cout << "Memory: " << process->getMemoryRequirement() << "KB\n";
         }
     }
@@ -172,6 +172,22 @@ void ProcessManager::batchProcessingLoop()
 
         // Longer sleep time to reduce CPU usage
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+}
+
+void ProcessManager::listProcessesWithMemory()
+{
+    std::lock_guard<std::mutex> lock(processesMutex);
+    for (const auto &pair : processes)
+    {
+        auto process = pair.second;
+        if (process && process->getState() == Process::RUNNING)
+        {
+            // Convert KB to MiB for display
+            double memMiB = process->getMemoryRequirement() / 1024.0;
+            std::cout << std::left << std::setw(10) << process->getName()
+                      << std::fixed << std::setprecision(0) << memMiB << "MiB\n";
+        }
     }
 }
 

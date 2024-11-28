@@ -254,26 +254,44 @@ void CLI::displayProcessMemoryInfo()
     auto &memManager = MemoryManager::getInstance();
     auto &scheduler = Scheduler::getInstance();
 
-    // Memory Overview
-    size_t totalMem = memManager.getTotalMemory() / 1024; // Convert to KB
-    size_t usedMem = memManager.getUsedMemory() / 1024;
-    size_t freeMem = memManager.getFreeMemory() / 1024;
+    // Calculate memory values in KB
+    size_t totalMemKB = memManager.getTotalMemory() / 1024;
+    size_t usedMemKB = memManager.getUsedMemory() / 1024;
 
-    std::cout << "\n=== Memory and Process Overview ===\n";
-    std::cout << "Memory Usage: " << usedMem << "KB/" << totalMem << "KB ("
-              << (usedMem * 100 / totalMem) << "%)\n";
-
-    // CPU Overview
+    // Calculate CPU utilization
     int totalCores = Config::getInstance().getNumCPU();
-    uint64_t activeTicks = scheduler.getActiveTicks();
-    uint64_t totalTicks = scheduler.getTotalTicks();
-    double cpuUtil = totalTicks > 0 ? (activeTicks * 100.0 / totalTicks) : 0;
+    int usedCores = scheduler.getRunningProcesses().size();
+    double cpuUtil = (usedCores * 100.0) / totalCores;
 
-    std::cout << "CPU Utilization: " << std::fixed << std::setprecision(1) << cpuUtil << "%\n";
-    std::cout << "Memory Type: " << (memManager.isPageBasedAllocation() ? "Paged" : "Flat") << "\n\n";
+    // Calculate memory utilization
+    double memUtil = totalMemKB > 0 ? (usedMemKB * 100.0) / totalMemKB : 0.0;
 
-    // Process list
-    ProcessManager::getInstance().listProcesses();
+    std::cout << "-----------------------------------------------\n";
+    std::cout << "| PROCESS-SMI V01.00  Driver Version: 01.00 |\n";
+    std::cout << "-----------------------------------------------\n";
+    std::cout << "CPU-Util: " << std::fixed << std::setprecision(0) << cpuUtil << "%\n";
+    std::cout << "Memory Usage: " << std::fixed << std::setprecision(1)
+              << usedMemKB << "KB / " << totalMemKB << "KB\n";
+    std::cout << "Memory Util: " << std::fixed << std::setprecision(0)
+              << memUtil << "%\n";
+
+    std::cout << "===============================================\n";
+    std::cout << "Running processes and memory usage:\n";
+    std::cout << "-----------------------------------------------\n";
+
+    // Get running processes from Scheduler
+    auto runningProcesses = scheduler.getRunningProcesses();
+
+    for (const auto &process : runningProcesses)
+    {
+        if (process)
+        {
+            std::cout << std::left << std::setw(10) << process->getName()
+                      << process->getMemoryRequirement() << "KB\n";
+        }
+    }
+
+    std::cout << "-----------------------------------------------\n";
 }
 
 void CLI::displayVirtualMemoryStats()
@@ -281,10 +299,10 @@ void CLI::displayVirtualMemoryStats()
     auto &memManager = MemoryManager::getInstance();
     auto &scheduler = Scheduler::getInstance();
 
-    // Memory statistics
-    size_t totalMem = memManager.getTotalMemory() / 1024; // Convert to KB
+    // Memory statistics in KB
+    size_t totalMem = memManager.getTotalMemory() / 1024; // Convert bytes to KB
     size_t usedMem = memManager.getUsedMemory() / 1024;
-    size_t freeMem = memManager.getFreeMemory() / 1024;
+    size_t freeMem = totalMem - usedMem;
 
     // CPU statistics
     uint64_t idleTicks = scheduler.getIdleTicks();
@@ -295,7 +313,6 @@ void CLI::displayVirtualMemoryStats()
     uint64_t pagesIn = memManager.getPagesPagedIn();
     uint64_t pagesOut = memManager.getPagesPagedOut();
 
-    // Display formatted output
     std::cout << "\n=== Virtual Memory Statistics ===\n";
     std::cout << std::left << std::setw(20) << "Memory (KB):"
               << "total=" << totalMem << ", used=" << usedMem << ", free=" << freeMem << "\n";
@@ -304,7 +321,7 @@ void CLI::displayVirtualMemoryStats()
               << "idle=" << idleTicks << ", active=" << activeTicks << ", total=" << totalTicks << "\n";
 
     std::cout << std::left << std::setw(20) << "Page Operations:"
-              << "in=" << pagesIn << ", out=" << pagesOut << "\n\n";
+              << "in=" << pagesIn << ", out=" << pagesOut << "\n";
 }
 
 void CLI::clearScreen()

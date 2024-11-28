@@ -24,6 +24,8 @@ public:
     void startBatchProcessing();
     void stopBatchProcessing();
 
+    void listProcessesWithMemory();
+
 private:
     ProcessManager() : nextPID(1), batchProcessingActive(false), lastProcessCreationCycle(0) {}
     ~ProcessManager() { stopBatchProcessing(); }

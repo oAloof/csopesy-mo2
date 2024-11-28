@@ -7,7 +7,6 @@
 #include <thread>
 #include <ctime>
 #include "Utils.h"
-#include "MemoryManager.h"
 
 Scheduler::Scheduler()
 {
@@ -148,16 +147,6 @@ void Scheduler::executeProcesses()
                 std::lock_guard<std::timed_mutex> lock(mutex);
                 if (currentProcess->isFinished())
                 {
-
-                    try
-                    {
-                        MemoryManager::getInstance().deallocateMemory(currentProcess);
-                    }
-                    catch (const std::exception &e)
-                    {
-                        std::cerr << "Error deallocating memory: " << e.what() << std::endl;
-                    }
-
                     currentProcess->setState(Process::FINISHED);
                     finishedProcesses.push_back(currentProcess);
                     updateCoreStatus(currentProcess->getCPUCoreID(), false);
@@ -330,7 +319,7 @@ void Scheduler::getCPUUtilization() const
 void Scheduler::waitForCycleSync()
 {
     const int CYCLE_SPEED = 1000; // Base timing in microseconds
-    const int CYCLE_WAIT = 500;
+    const int CYCLE_WAIT = 999;
 
     try
     {

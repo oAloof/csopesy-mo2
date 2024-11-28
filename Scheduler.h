@@ -33,6 +33,12 @@ public:
     uint64_t getActiveTicks() const { return activeTicks.load(); }
     uint64_t getTotalTicks() const { return cpuCycles.load(); }
 
+    std::vector<std::shared_ptr<Process>> getRunningProcesses() const
+    {
+        std::lock_guard<std::timed_mutex> lock(mutex);
+        return runningProcesses;
+    }
+
 private:
     Scheduler();
     ~Scheduler() { stopScheduling(); }

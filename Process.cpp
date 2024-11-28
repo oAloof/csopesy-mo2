@@ -93,7 +93,6 @@ size_t Process::generateMemoryRequirement() const
 void Process::displayProcessInfo()
 {
     std::string processInfo;
-
     {
         std::lock_guard<std::mutex> lock(processMutex);
 
@@ -101,16 +100,15 @@ void Process::displayProcessInfo()
 
         if (state == FINISHED)
         {
-            processInfo += "Finished   " + std::to_string(getLinesOfCode()) + " / " + std::to_string(getLinesOfCode()) + "\n";
+            processInfo += "Finished   " + std::to_string(getLinesOfCode()) + " / " + std::to_string(getLinesOfCode());
         }
         else
         {
             processInfo += "Core: " + std::to_string(cpuCoreID) + "    " +
-                           std::to_string(getCommandCounter()) + " / " + std::to_string(getLinesOfCode()) + "\n";
+                           std::to_string(getCommandCounter()) + " / " + std::to_string(getLinesOfCode());
         }
     }
-
-    std::cout << processInfo;
+    std::cout << processInfo << "\n";
 }
 
 // Getters and setters

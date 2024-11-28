@@ -295,33 +295,31 @@ size_t MemoryManager::getUsedMemory() const
 {
     std::lock_guard<std::mutex> lock(memoryMutex);
 
+    size_t activeMemory = 0;
     if (usePageBasedAllocation)
     {
-        size_t activeMemory = 0;
         for (const auto &pair : processPages)
         {
             auto proc = pageTable[pair.second[0]].process.lock();
-            if (proc && proc->getState() != Process::WAITING)
+            if (proc && proc->getState() == Process::RUNNING)
             {
                 activeMemory += proc->getMemoryRequirement() * 1024;
             }
         }
-        return activeMemory;
     }
     else
     {
-        size_t activeMemory = 0;
         for (const auto &block : memoryBlocks)
         {
             if (!block.process.expired() && !block.isFree)
             {
                 auto proc = block.process.lock();
-                if (proc && proc->getState() != Process::WAITING)
+                if (proc && proc->getState() == Process::RUNNING)
                 {
                     activeMemory += block.size;
                 }
             }
         }
-        return activeMemory;
     }
+    return activeMemory;
 }
