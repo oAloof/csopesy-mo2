@@ -62,8 +62,7 @@ private:
     std::vector<std::thread> cpuThreads;
     std::vector<bool> coreStatus;
     std::atomic<uint64_t> cpuCycles{0};
-    std::thread cycleCounterThread;
-    std::atomic<bool> cycleCounterActive{false};
+    std::atomic<bool> isActiveCycle{false};
 
     // Core methods
     void executeProcesses();
@@ -75,7 +74,6 @@ private:
     void updateCoreStatus(int coreID, bool active);
     void incrementCPUCycles() { ++cpuCycles; }
     void waitForCycleSync();
-    void cycleCounterLoop();
 
     std::atomic<uint64_t> idleTicks{0};
     std::atomic<uint64_t> activeTicks{0};

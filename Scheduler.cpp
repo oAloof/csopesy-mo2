@@ -30,16 +30,11 @@ void Scheduler::startScheduling()
     {
         cpuThreads.emplace_back(&Scheduler::executeProcesses, this);
     }
-
-    // Start the cycle counter thread
-    cycleCounterActive = true;
-    cycleCounterThread = std::thread(&Scheduler::cycleCounterLoop, this);
 }
 
 void Scheduler::stopScheduling()
 {
     processingActive = false;
-    cycleCounterActive = false;
     cv.notify_all();
     syncCv.notify_all();
 
@@ -51,12 +46,6 @@ void Scheduler::stopScheduling()
         }
     }
     cpuThreads.clear();
-
-    // Stop the cycle counter thread
-    if (cycleCounterThread.joinable())
-    {
-        cycleCounterThread.join();
-    }
 }
 
 void Scheduler::addProcess(std::shared_ptr<Process> process)
@@ -114,7 +103,7 @@ void Scheduler::executeProcesses()
 
             while (!currentProcess->isFinished() && processingActive)
             {
-                activeTicks++;
+                isActiveCycle = true; // Mark as active cycle
 
                 if (Config::getInstance().getSchedulerType() == "rr" &&
                     currentProcess->getQuantumTime() >= Config::getInstance().getQuantumCycles())
@@ -168,8 +157,8 @@ void Scheduler::executeProcesses()
         }
         else
         {
-            idleTicks++;
-            // std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            isActiveCycle = false;
+            waitForCycleSync();
             cv.notify_all();
         }
     }
@@ -335,6 +324,14 @@ void Scheduler::waitForCycleSync()
         if (runningCount == 0)
         {
             incrementCPUCycles();
+            if (isActiveCycle)
+            {
+                activeTicks++;
+            }
+            else
+            {
+                idleTicks++;
+            }
             std::this_thread::sleep_for(std::chrono::microseconds(CYCLE_WAIT));
             return;
         }
@@ -345,6 +342,14 @@ void Scheduler::waitForCycleSync()
             if (coresWaiting >= runningCount)
             {
                 incrementCPUCycles();
+                if (isActiveCycle)
+                {
+                    activeTicks++;
+                }
+                else
+                {
+                    idleTicks++;
+                }
                 coresWaiting = 0;
                 syncCv.notify_all();
                 std::this_thread::sleep_for(std::chrono::microseconds(CYCLE_WAIT));
@@ -362,6 +367,14 @@ void Scheduler::waitForCycleSync()
                 {
                     coresWaiting = 0;
                     incrementCPUCycles();
+                    if (isActiveCycle)
+                    {
+                        activeTicks++;
+                    }
+                    else
+                    {
+                        idleTicks++;
+                    }
                     syncCv.notify_all();
                 }
             }
@@ -390,28 +403,6 @@ void Scheduler::updateCoreStatus(int coreID, bool active)
         if (!active)
         {
             cv.notify_all();
-        }
-    }
-}
-
-void Scheduler::cycleCounterLoop()
-{
-    while (cycleCounterActive)
-    {
-        bool shouldSleep = false;
-        {
-            std::unique_lock<std::timed_mutex> lock(syncMutex);
-            if (runningProcesses.empty() && readyQueue.empty())
-            {
-                incrementCPUCycles();
-                idleTicks++;
-                shouldSleep = true;
-            }
-        }
-
-        if (shouldSleep)
-        {
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
     }
 }
