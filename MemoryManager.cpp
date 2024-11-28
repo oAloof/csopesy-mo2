@@ -2,6 +2,7 @@
 #include "Process.h"
 #include <algorithm>
 #include <stdexcept>
+#include <iostream>
 
 void MemoryManager::initialize()
 {
@@ -43,30 +44,70 @@ bool MemoryManager::allocateMemory(std::shared_ptr<Process> process)
     }
 
     std::lock_guard<std::mutex> lock(memoryMutex);
-    return usePageBasedAllocation ? allocatePaged(process) : allocateFlat(process);
+    size_t requiredBytes = process->getMemoryRequirement() * 1024;
+
+    // Check available memory (only count memory used by active processes)
+    size_t activeMemory = 0;
+    for (const auto &pair : processPages)
+    {
+        auto proc = pageTable[pair.second[0]].process.lock();
+        if (proc && proc->getState() != Process::WAITING)
+        {
+            activeMemory += proc->getMemoryRequirement() * 1024;
+        }
+    }
+
+    // If not enough memory available, swap out oldest process
+    if (activeMemory + requiredBytes > totalMemory)
+    {
+        swapOutOldestProcess();
+        // Recalculate available memory
+        activeMemory = 0;
+        for (const auto &pair : processPages)
+        {
+            auto proc = pageTable[pair.second[0]].process.lock();
+            if (proc && proc->getState() != Process::WAITING)
+            {
+                activeMemory += proc->getMemoryRequirement() * 1024;
+            }
+        }
+        if (activeMemory + requiredBytes > totalMemory)
+        {
+            return false;
+        }
+    }
+
+    bool success = usePageBasedAllocation ? allocatePaged(process) : allocateFlat(process);
+    if (success)
+    {
+        usedMemory = activeMemory + requiredBytes; // Update with new total active memory
+    }
+    return success;
 }
 
 bool MemoryManager::allocateFlat(std::shared_ptr<Process> process)
 {
+    size_t requiredBytes = process->getMemoryRequirement() * 1024; // Convert KB to bytes
+
     for (auto &block : memoryBlocks)
     {
-        if (block.isFree && block.size >= process->getMemoryRequirement())
+        if (block.isFree && block.size >= requiredBytes)
         {
             // Split block if necessary
-            if (block.size > process->getMemoryRequirement())
+            if (block.size > requiredBytes)
             {
                 MemoryBlock newBlock{
-                    block.startAddress + process->getMemoryRequirement(),
-                    block.size - process->getMemoryRequirement(),
+                    block.startAddress + requiredBytes,
+                    block.size - requiredBytes,
                     true,
                     std::weak_ptr<Process>()};
-                block.size = process->getMemoryRequirement();
+                block.size = requiredBytes;
                 memoryBlocks.push_back(newBlock);
             }
 
             block.isFree = false;
             block.process = process;
-            usedMemory += block.size;
+            usedMemory += requiredBytes; // Update used memory
             return true;
         }
     }
@@ -77,7 +118,8 @@ bool MemoryManager::allocateFlat(std::shared_ptr<Process> process)
 
 bool MemoryManager::allocatePaged(std::shared_ptr<Process> process)
 {
-    size_t numPagesNeeded = (process->getMemoryRequirement() + pageSize - 1) / pageSize;
+    size_t requiredBytes = process->getMemoryRequirement() * 1024;
+    size_t numPagesNeeded = (requiredBytes + pageSize - 1) / pageSize;
     std::vector<uint32_t> allocatedFrames;
 
     if (findFreePages(numPagesNeeded, allocatedFrames))
@@ -88,12 +130,10 @@ bool MemoryManager::allocatePaged(std::shared_ptr<Process> process)
             pageTable[frame].isPresent = true;
             pageTable[frame].process = process;
         }
-        usedMemory += numPagesNeeded * pageSize;
         pagesPagedIn += numPagesNeeded;
         return true;
     }
 
-    swapOutOldestProcess();
     return false;
 }
 
@@ -101,29 +141,49 @@ void MemoryManager::deallocateMemory(std::shared_ptr<Process> process)
 {
     std::lock_guard<std::mutex> lock(memoryMutex);
 
+    if (!process)
+        return;
+
     if (usePageBasedAllocation)
     {
         auto it = processPages.find(process->getPID());
         if (it != processPages.end())
         {
+            // Only update memory usage if process was active
+            if (process->getState() != Process::WAITING)
+            {
+                size_t memToFree = process->getMemoryRequirement() * 1024;
+                if (usedMemory >= memToFree)
+                {
+                    usedMemory -= memToFree;
+                }
+            }
+
             for (uint32_t frame : it->second)
             {
                 pageTable[frame].isPresent = false;
                 pageTable[frame].process.reset();
             }
-            usedMemory -= it->second.size() * pageSize;
             processPages.erase(it);
         }
     }
     else
     {
+        // For flat memory
         for (auto &block : memoryBlocks)
         {
             if (!block.process.expired() && block.process.lock() == process)
             {
+                // Only update memory usage if process was active
+                if (process->getState() != Process::WAITING)
+                {
+                    if (usedMemory >= block.size)
+                    {
+                        usedMemory -= block.size;
+                    }
+                }
                 block.isFree = true;
                 block.process.reset();
-                usedMemory -= block.size;
             }
         }
         coalesceFreeBlocks();
@@ -171,7 +231,97 @@ bool MemoryManager::findFreePages(size_t numPages, std::vector<uint32_t> &alloca
 
 void MemoryManager::swapOutOldestProcess()
 {
-    // Find oldest process and swap it out
-    // Will be implemented when we add backing store
-    pagesPagedOut++; // Track statistics
+    std::lock_guard<std::mutex> lock(memoryMutex);
+
+    std::shared_ptr<Process> oldestProcess = nullptr;
+    std::chrono::system_clock::time_point oldestTime = std::chrono::system_clock::now();
+
+    // Find oldest process
+    if (usePageBasedAllocation)
+    {
+        for (const auto &pair : processPages)
+        {
+            for (uint32_t frame : pair.second)
+            {
+                if (!pageTable[frame].process.expired())
+                {
+                    auto process = pageTable[frame].process.lock();
+                    if (process && process->getState() != Process::WAITING &&
+                        process->getCreationTime() < oldestTime)
+                    {
+                        oldestProcess = process;
+                        oldestTime = process->getCreationTime();
+                    }
+                }
+            }
+        }
+    }
+    else
+    {
+        for (const auto &block : memoryBlocks)
+        {
+            if (!block.process.expired())
+            {
+                auto process = block.process.lock();
+                if (process && process->getState() != Process::WAITING &&
+                    process->getCreationTime() < oldestTime)
+                {
+                    oldestProcess = process;
+                    oldestTime = process->getCreationTime();
+                }
+            }
+        }
+    }
+
+    if (oldestProcess)
+    {
+        oldestProcess->setState(Process::WAITING); // Mark as waiting before deallocation
+        auto it = processPages.find(oldestProcess->getPID());
+        if (it != processPages.end())
+        {
+            pagesPagedOut += it->second.size();
+            // Decrease used memory since pages are being swapped out
+            size_t memToFree = oldestProcess->getMemoryRequirement() * 1024;
+            if (usedMemory >= memToFree)
+            {
+                usedMemory -= memToFree;
+            }
+        }
+        deallocateMemory(oldestProcess);
+    }
+}
+
+size_t MemoryManager::getUsedMemory() const
+{
+    std::lock_guard<std::mutex> lock(memoryMutex);
+
+    if (usePageBasedAllocation)
+    {
+        size_t activeMemory = 0;
+        for (const auto &pair : processPages)
+        {
+            auto proc = pageTable[pair.second[0]].process.lock();
+            if (proc && proc->getState() != Process::WAITING)
+            {
+                activeMemory += proc->getMemoryRequirement() * 1024;
+            }
+        }
+        return activeMemory;
+    }
+    else
+    {
+        size_t activeMemory = 0;
+        for (const auto &block : memoryBlocks)
+        {
+            if (!block.process.expired() && !block.isFree)
+            {
+                auto proc = block.process.lock();
+                if (proc && proc->getState() != Process::WAITING)
+                {
+                    activeMemory += block.size;
+                }
+            }
+        }
+        return activeMemory;
+    }
 }

@@ -6,6 +6,7 @@
 #include <chrono>
 #include <iomanip>
 #include <windows.h>
+#include "MemoryManager.h"
 
 void CLI::displayHeader()
 {
@@ -110,6 +111,14 @@ void CLI::handleCommand(const std::string &command)
         {
             Scheduler::getInstance().getCPUUtilization();
         }
+        else if (cmd == "process-smi")
+        {
+            displayProcessMemoryInfo();
+        }
+        else if (cmd == "vmstat")
+        {
+            displayVirtualMemoryStats();
+        }
         else if (cmd != "exit")
         {
             std::cout << "Invalid command.\n";
@@ -144,6 +153,7 @@ void CLI::initialize()
     try
     {
         Config::getInstance().loadConfig("config.txt");
+        MemoryManager::getInstance().initialize();
         initialized = true;
         Scheduler::getInstance().startScheduling();
         std::cout << "System initialized successfully.\n";
@@ -237,6 +247,64 @@ void CLI::displayProcessScreen(const std::string &processName)
     {
         process->displayProcessInfo();
     }
+}
+
+void CLI::displayProcessMemoryInfo()
+{
+    auto &memManager = MemoryManager::getInstance();
+    auto &scheduler = Scheduler::getInstance();
+
+    // Memory Overview
+    size_t totalMem = memManager.getTotalMemory() / 1024; // Convert to KB
+    size_t usedMem = memManager.getUsedMemory() / 1024;
+    size_t freeMem = memManager.getFreeMemory() / 1024;
+
+    std::cout << "\n=== Memory and Process Overview ===\n";
+    std::cout << "Memory Usage: " << usedMem << "KB/" << totalMem << "KB ("
+              << (usedMem * 100 / totalMem) << "%)\n";
+
+    // CPU Overview
+    int totalCores = Config::getInstance().getNumCPU();
+    uint64_t activeTicks = scheduler.getActiveTicks();
+    uint64_t totalTicks = scheduler.getTotalTicks();
+    double cpuUtil = totalTicks > 0 ? (activeTicks * 100.0 / totalTicks) : 0;
+
+    std::cout << "CPU Utilization: " << std::fixed << std::setprecision(1) << cpuUtil << "%\n";
+    std::cout << "Memory Type: " << (memManager.isPageBasedAllocation() ? "Paged" : "Flat") << "\n\n";
+
+    // Process list
+    ProcessManager::getInstance().listProcesses();
+}
+
+void CLI::displayVirtualMemoryStats()
+{
+    auto &memManager = MemoryManager::getInstance();
+    auto &scheduler = Scheduler::getInstance();
+
+    // Memory statistics
+    size_t totalMem = memManager.getTotalMemory() / 1024; // Convert to KB
+    size_t usedMem = memManager.getUsedMemory() / 1024;
+    size_t freeMem = memManager.getFreeMemory() / 1024;
+
+    // CPU statistics
+    uint64_t idleTicks = scheduler.getIdleTicks();
+    uint64_t activeTicks = scheduler.getActiveTicks();
+    uint64_t totalTicks = scheduler.getTotalTicks();
+
+    // Page statistics
+    uint64_t pagesIn = memManager.getPagesPagedIn();
+    uint64_t pagesOut = memManager.getPagesPagedOut();
+
+    // Display formatted output
+    std::cout << "\n=== Virtual Memory Statistics ===\n";
+    std::cout << std::left << std::setw(20) << "Memory (KB):"
+              << "total=" << totalMem << ", used=" << usedMem << ", free=" << freeMem << "\n";
+
+    std::cout << std::left << std::setw(20) << "CPU Ticks:"
+              << "idle=" << idleTicks << ", active=" << activeTicks << ", total=" << totalTicks << "\n";
+
+    std::cout << std::left << std::setw(20) << "Page Operations:"
+              << "in=" << pagesIn << ", out=" << pagesOut << "\n\n";
 }
 
 void CLI::clearScreen()

@@ -4,12 +4,18 @@
 #include <sstream>
 #include <chrono>
 #include "Utils.h"
+#include "MemoryManager.h"
 
 void ProcessManager::createProcess(const std::string &name)
 {
     if (name.empty())
     {
         throw std::runtime_error("Process name cannot be empty");
+    }
+
+    if (!MemoryManager::getInstance().isInitialized())
+    {
+        throw std::runtime_error("Memory Manager not initialized");
     }
 
     std::unique_lock<std::mutex> lock(processesMutex);
@@ -20,9 +26,16 @@ void ProcessManager::createProcess(const std::string &name)
 
     try
     {
+        // Create process first
         auto process = std::make_shared<Process>(nextPID++, name);
+
+        // Try to allocate memory
+        if (!MemoryManager::getInstance().allocateMemory(process))
+        {
+            throw std::runtime_error("Failed to allocate memory for process '" + name + "'");
+        }
+
         processes[name] = process;
-        // Release lock before scheduling to prevent deadlock
         lock.unlock();
         Scheduler::getInstance().addProcess(process);
     }
@@ -51,13 +64,14 @@ void ProcessManager::listProcesses()
 {
     std::vector<std::shared_ptr<Process>> processSnapshot;
     int totalCores;
+    size_t totalMemory = MemoryManager::getInstance().getTotalMemory();
+    size_t usedMemory = MemoryManager::getInstance().getUsedMemory();
     int activeCount = 0;
 
     {
         std::lock_guard<std::mutex> lock(processesMutex);
         totalCores = Config::getInstance().getNumCPU();
 
-        // Create a snapshot of processes to prevent holding the lock during output
         for (const auto &pair : processes)
         {
             processSnapshot.push_back(pair.second);
@@ -68,16 +82,22 @@ void ProcessManager::listProcesses()
         }
     }
 
+    // Display memory and CPU usage
+    std::cout << "Memory Usage: " << (usedMemory / 1024) << "KB/"
+              << (totalMemory / 1024) << "KB ("
+              << (usedMemory * 100 / totalMemory) << "%)\n";
     std::cout << "CPU utilization: " << (activeCount * 100 / totalCores) << "%\n";
     std::cout << "Cores used: " << activeCount << "\n";
     std::cout << "Cores available: " << (totalCores - activeCount) << "\n\n";
 
+    // Display process info
     std::cout << "Running processes:\n";
     for (const auto &process : processSnapshot)
     {
         if (process->getState() == Process::RUNNING)
         {
             process->displayProcessInfo();
+            std::cout << "Memory: " << process->getMemoryRequirement() << "KB\n";
         }
     }
 

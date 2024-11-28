@@ -43,13 +43,15 @@ public:
 
     // Memory status
     size_t getTotalMemory() const { return totalMemory; }
-    size_t getUsedMemory() const { return usedMemory; }
+    size_t getUsedMemory() const;
     size_t getFreeMemory() const { return totalMemory - usedMemory; }
     bool isPageBasedAllocation() const { return usePageBasedAllocation; }
 
     // Memory statistics for vmstat
     uint64_t getPagesPagedIn() const { return pagesPagedIn; }
     uint64_t getPagesPagedOut() const { return pagesPagedOut; }
+
+    bool isInitialized() const { return initialized; }
 
 private:
     MemoryManager() : totalMemory(0), usedMemory(0), pagesPagedIn(0), pagesPagedOut(0),

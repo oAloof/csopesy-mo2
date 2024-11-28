@@ -29,6 +29,10 @@ public:
     void getCPUUtilization() const;
     uint64_t getCPUCycles() const { return cpuCycles.load(); }
 
+    uint64_t getIdleTicks() const { return idleTicks.load(); }
+    uint64_t getActiveTicks() const { return activeTicks.load(); }
+    uint64_t getTotalTicks() const { return cpuCycles.load(); }
+
 private:
     Scheduler();
     ~Scheduler() { stopScheduling(); }
@@ -66,6 +70,9 @@ private:
     void incrementCPUCycles() { ++cpuCycles; }
     void waitForCycleSync();
     void cycleCounterLoop();
+
+    std::atomic<uint64_t> idleTicks{0};
+    std::atomic<uint64_t> activeTicks{0};
 };
 
 #endif

@@ -7,6 +7,7 @@
 #include <thread>
 #include <ctime>
 #include "Utils.h"
+#include "MemoryManager.h"
 
 Scheduler::Scheduler()
 {
@@ -114,6 +115,8 @@ void Scheduler::executeProcesses()
 
             while (!currentProcess->isFinished() && processingActive)
             {
+                activeTicks++;
+
                 if (Config::getInstance().getSchedulerType() == "rr" &&
                     currentProcess->getQuantumTime() >= Config::getInstance().getQuantumCycles())
                 {
@@ -145,6 +148,16 @@ void Scheduler::executeProcesses()
                 std::lock_guard<std::timed_mutex> lock(mutex);
                 if (currentProcess->isFinished())
                 {
+
+                    try
+                    {
+                        MemoryManager::getInstance().deallocateMemory(currentProcess);
+                    }
+                    catch (const std::exception &e)
+                    {
+                        std::cerr << "Error deallocating memory: " << e.what() << std::endl;
+                    }
+
                     currentProcess->setState(Process::FINISHED);
                     finishedProcesses.push_back(currentProcess);
                     updateCoreStatus(currentProcess->getCPUCoreID(), false);
@@ -166,7 +179,8 @@ void Scheduler::executeProcesses()
         }
         else
         {
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            idleTicks++;
+            // std::this_thread::sleep_for(std::chrono::milliseconds(50));
             cv.notify_all();
         }
     }
@@ -401,6 +415,7 @@ void Scheduler::cycleCounterLoop()
             if (runningProcesses.empty() && readyQueue.empty())
             {
                 incrementCPUCycles();
+                idleTicks++;
                 shouldSleep = true;
             }
         }

@@ -160,4 +160,13 @@ void Config::validateParameters()
         throw ConfigException("Invalid max-mem-per-proc (must be >= min-mem-per-proc): " +
                               std::to_string(maxMemPerProc));
     }
+    if (maxOverallMem < memPerFrame)
+    {
+        throw ConfigException("max-overall-mem must be greater than mem-per-frame");
+    }
+
+    if (maxMemPerProc > maxOverallMem)
+    {
+        throw ConfigException("max-mem-per-proc cannot exceed max-overall-mem");
+    }
 }
