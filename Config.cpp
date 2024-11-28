@@ -17,7 +17,11 @@ void Config::loadConfig(const std::string &filename)
         {"batch-process-freq", false},
         {"min-ins", false},
         {"max-ins", false},
-        {"delays-per-exec", false}};
+        {"delays-per-exec", false},
+        {"max-overall-mem", false},
+        {"mem-per-frame", false},
+        {"min-mem-per-proc", false},
+        {"max-mem-per-proc", false}};
 
     std::string param;
     while (file >> param)
@@ -55,6 +59,26 @@ void Config::loadConfig(const std::string &filename)
         else if (param == "delays-per-exec")
         {
             file >> delaysPerExec;
+            requiredParams[param] = true;
+        }
+        else if (param == "max-overall-mem")
+        {
+            file >> maxOverallMem;
+            requiredParams[param] = true;
+        }
+        else if (param == "mem-per-frame")
+        {
+            file >> memPerFrame;
+            requiredParams[param] = true;
+        }
+        else if (param == "min-mem-per-proc")
+        {
+            file >> minMemPerProc;
+            requiredParams[param] = true;
+        }
+        else if (param == "max-mem-per-proc")
+        {
+            file >> maxMemPerProc;
             requiredParams[param] = true;
         }
         else
@@ -111,5 +135,29 @@ void Config::validateParameters()
     if (delaysPerExec < 0)
     {
         throw ConfigException("Invalid delays per execution (must be non-negative): " + std::to_string(delaysPerExec));
+    }
+
+    if (maxOverallMem < 2 || !isPowerOfTwo(maxOverallMem))
+    {
+        throw ConfigException("Invalid max-overall-mem (must be power of 2 >= 2): " +
+                              std::to_string(maxOverallMem));
+    }
+
+    if (memPerFrame < 2 || !isPowerOfTwo(memPerFrame))
+    {
+        throw ConfigException("Invalid mem-per-frame (must be power of 2 >= 2): " +
+                              std::to_string(memPerFrame));
+    }
+
+    if (minMemPerProc < 2)
+    {
+        throw ConfigException("Invalid min-mem-per-proc (must be >= 2): " +
+                              std::to_string(minMemPerProc));
+    }
+
+    if (maxMemPerProc < minMemPerProc)
+    {
+        throw ConfigException("Invalid max-mem-per-proc (must be >= min-mem-per-proc): " +
+                              std::to_string(maxMemPerProc));
     }
 }

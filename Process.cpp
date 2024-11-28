@@ -14,7 +14,8 @@ Process::Process(int pid, const std::string &name)
       cpuCoreID(-1),
       commandCounter(0),
       quantumTime(0),
-      creationTime(std::chrono::system_clock::now())
+      creationTime(std::chrono::system_clock::now()),
+      memoryRequirement(generateMemoryRequirement())
 {
     // Generate random number of instructions based on config
     int numInstructions = generateInstructionCount();
@@ -75,6 +76,17 @@ int Process::generateInstructionCount() const
     std::mt19937 gen(rd());
     std::uniform_int_distribution<> dis(min, max);
 
+    return dis(gen);
+}
+
+size_t Process::generateMemoryRequirement() const
+{
+    auto &config = Config::getInstance();
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<uint32_t> dis(
+        config.getMinMemPerProc(),
+        config.getMaxMemPerProc());
     return dis(gen);
 }
 

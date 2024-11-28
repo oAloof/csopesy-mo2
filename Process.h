@@ -6,6 +6,7 @@
 #include <memory>
 #include <atomic>
 #include <mutex>
+#include <random>
 #include "ICommand.h"
 #include "Config.h"
 #include "PrintCommand.h"
@@ -53,24 +54,30 @@ public:
     // Process-smi command
     void displayProcessInfo();
 
+    size_t getMemoryRequirement() const { return memoryRequirement; }
+
 private:
     // Basic process information
     const int pid;
     const std::string name;
-    std::atomic<ProcessState> state; 
+    std::atomic<ProcessState> state;
     std::atomic<int> cpuCoreID;
     std::chrono::system_clock::time_point creationTime;
 
+    size_t memoryRequirement;
+
     // Command management
     std::vector<std::shared_ptr<ICommand>> commandList;
-    std::atomic<int> commandCounter; 
+    std::atomic<int> commandCounter;
 
     // Round Robin timing
-    std::atomic<uint32_t> quantumTime; 
+    std::atomic<uint32_t> quantumTime;
 
     mutable std::mutex processMutex;
 
+    // Generation methods
     int generateInstructionCount() const;
+    size_t generateMemoryRequirement() const;
 };
 
 #endif
