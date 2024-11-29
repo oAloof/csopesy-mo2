@@ -1,5 +1,3 @@
-Here’s a draft for the **README.txt** file. You can replace `[name]` with your actual name when you’re ready.
-
 ---
 
 **README.txt**

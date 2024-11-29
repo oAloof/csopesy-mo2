@@ -280,7 +280,6 @@ void MemoryManager::swapOutOldestProcess()
         if (it != processPages.end())
         {
             pagesPagedOut += it->second.size();
-            // Decrease used memory since pages are being swapped out
             size_t memToFree = oldestProcess->getMemoryRequirement() * 1024;
             if (usedMemory >= memToFree)
             {
