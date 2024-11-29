@@ -81,7 +81,7 @@ private:
     bool allocatePaged(std::shared_ptr<Process> process);
     void coalesceFreeBlocks();
     bool findFreePages(size_t numPages, std::vector<uint32_t> &allocatedFrames);
-    void swapOutOldestProcess();
+    bool swapOutOldestProcess();
 };
 
 #endif
