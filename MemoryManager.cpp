@@ -285,7 +285,7 @@ bool MemoryManager::swapOutOldestProcess()
     {
         if (oldestProcess->getState() != Process::FINISHED)
         {
-            oldestProcess->setState(Process::WAITING);
+            oldestProcess->setState(Process::READY);
         }
 
         if (usePageBasedAllocation)
